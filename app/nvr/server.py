@@ -102,6 +102,11 @@ async def lifespan(_: FastAPI):
     try:
         await asyncio.to_thread(storage.prepare_recordings_dir, str(recordings_dir()), False)
         storage.mark_camera_dirs([c.id for c in ctx.store.config.cameras])
+        if not saved_dir:
+            # ghi nhớ thư mục đang dùng: sau này đổi RECORDINGS_DIR trong docker-compose.yml
+            # cũng không làm bản ghi "biến mất" khỏi trang Xem lại
+            ctx.store.config.settings.recordings_dir = str(recordings_dir())
+            ctx.store.save()
     except UserError as e:
         ctx.events.add("error", "Thư mục lưu bản ghi {path} chưa dùng được: {error}. Vào Cài đặt để chọn thư mục khác.",
                        path=str(recordings_dir()), error=e.msg)

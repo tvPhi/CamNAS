@@ -5,17 +5,17 @@ services:
     container_name: camnas
     restart: unless-stopped
     ports:
-      - "8090:8080" # mở http://<IP-NAS>:8090
+      - "8090:8080" # web UI: http://<NAS-IP>:8090
     environment:
-      TZ: Asia/Ho_Chi_Minh
-      ADMIN_PASSWORD: admin # mật khẩu đăng nhập lần đầu - đổi lại trong trang Cài đặt
-      DATA_DIR: /camnas/data # = thư mục data/ trong thư mục dự án, CamNAS tự tạo
-      RECORDINGS_DIR: /volume1/Docker_Run/CameraRecord/recording # chỗ lưu bản ghi ban đầu - đổi được trong Cài đặt
+      TZ: Asia/Ho_Chi_Minh # your time zone, e.g. Europe/Berlin
+      ADMIN_PASSWORD: admin # first sign-in password - change it in Settings
+      DATA_DIR: /camnas/data # = the data/ folder inside this project folder (created automatically)
+      RECORDINGS_DIR: /volume1/docker/camnas/recordings # recordings folder on first run - change it in Settings
     volumes:
-      # Chỉ gắn các thư mục luôn có sẵn, nên Synology không báo lỗi "Bind mount failed".
-      - .:/camnas # thư mục dự án (chứa data/: cấu hình camera, nhật ký)
-      - /volume1:/volume1 # để chọn và tự tạo thư mục lưu bản ghi ngay trong giao diện
-      # - /volume2:/volume2 # bỏ dấu # ở đầu dòng nếu muốn lưu sang volume khác
+      # Only folders that always exist, so Synology never fails with "Bind mount failed".
+      - .:/camnas # this project folder (holds data/: camera list, logs)
+      - /volume1:/volume1 # lets you pick/create the recordings folder from the web UI
+      # - /volume2:/volume2 # uncomment to store recordings on another volume
     stop_grace_period: 30s
     logging:
       driver: json-file

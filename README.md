@@ -1,128 +1,158 @@
-# CamNAS: ghi hình camera 24/7 trên NAS Synology
+# CamNAS: free 24/7 camera recorder for Synology NAS (Surveillance Station alternative)
 
-CamNAS là ứng dụng ghi hình chạy trong Docker trên NAS. Bản ghi được lưu thẳng vào ổ NAS, giao diện web tương tự Surveillance Station và **không cần mua license**.
+**English** | [Tiếng Việt](README.vi.md)
 
-- **Trực tiếp**: xem nhiều camera dạng lưới (1, 1 lớn + 2 nhỏ, 2×2, 3×3), độ trễ khoảng 1 giây. Bấm đúp vào một camera để phóng to. Có chụp ảnh, toàn màn hình và bật/tắt tiếng.
-- **Xem lại**: dòng thời gian 24 giờ, mỗi camera một hàng. Có thể kéo, cuộn chuột để phóng to, bấm vào một thời điểm để phát. Các đoạn tự phát nối tiếp nhau. Tua 0.5× đến 16×. Đánh dấu đầu/cuối để **xuất clip mp4**.
-- **Camera**: thêm, sửa, xoá, bật/tắt ghi hình, kiểm tra kết nối. Có mẫu sẵn cho EZVIZ, Imou/Dahua, Tapo.
-- **Tự dọn ổ cứng**: xoá bản ghi quá hạn N ngày, hoặc xoá bản ghi cũ nhất khi ổ sắp đầy.
-- **Nhật ký**: ghi lại lúc camera mất kết nối, kết nối lại, lúc xoá bản ghi và lúc đăng nhập sai.
-- Dùng được trên điện thoại.
-- Hai ngôn ngữ **Tiếng Việt / English**: bấm nút `VI | EN` trên thanh trên cùng hoặc ở màn hình đăng nhập. Mỗi trình duyệt nhớ ngôn ngữ riêng.
+CamNAS is a free, self-hosted NVR that runs in Docker on your NAS. It records your IP cameras 24/7 straight to the NAS disks and gives you a web interface similar to Synology Surveillance Station, **without per-camera licenses**. Surveillance Station usually ships with only 2 free camera licenses; CamNAS records as many cameras as your NAS can handle.
 
-Cách hoạt động: [go2rtc](https://github.com/AlexxIT/go2rtc) giữ **một** kết nối RTSP tới mỗi camera. `ffmpeg` sao chép nguyên luồng video (không mã hoá lại nên gần như không tốn CPU) và cắt thành file mp4 theo giờ đồng hồ. Trình duyệt xem trực tiếp qua cùng luồng đó.
+![Live view](docs/screenshots/live.jpg)
+
+| Timeline playback | Camera management |
+|---|---|
+| ![Playback](docs/screenshots/playback.jpg) | ![Cameras](docs/screenshots/cameras.jpg) |
+
+## Features
+
+- **Live view**: camera grid (1, 1 large + 2 small, 2×2, 3×3) with about 1 second of latency. Quality switch **Auto / HD / SD**. Double-click a camera to enlarge it. Snapshot, full screen and audio.
+- **Playback**: 24-hour timeline with one row per camera. Drag, zoom with the mouse wheel, click anywhere to play. Segments play back to back. Speed from 0.5× to 16×. Mark start and end to **export an mp4 clip**.
+- **Cameras**: add, edit, delete, turn recording on or off, test the connection. Presets for EZVIZ/Hikvision, Imou/Dahua and TP-Link Tapo, or enter any RTSP URL.
+- **Automatic cleanup**: delete recordings older than N days, or the oldest recordings when the disk is nearly full.
+- **Choose the recordings folder** from the web interface, with a folder browser for the NAS.
+- **Event log**: camera disconnects and reconnects, cleanup runs and failed sign-ins.
+- Works on phones.
+- **English / Tiếng Việt** interface: use the `VI | EN` switch in the top bar or on the sign-in screen.
+
+How it works: [go2rtc](https://github.com/AlexxIT/go2rtc) keeps **one** RTSP connection per camera. `ffmpeg` copies the video stream as is (no re-encoding, so it uses almost no CPU) and cuts it into mp4 files aligned to the clock. The browser's live view uses the same connection.
 
 ```
-/volume1/camera/<mã-camera>/2026-10-21/14-35-00.mp4
+<recordings folder>/<camera-id>/2026-10-21/14-35-00.mp4
 ```
 
-File là mp4 thông thường, có thể mở bằng VLC hoặc File Station mà không cần CamNAS.
+The files are plain mp4, so you can open them with VLC or File Station without CamNAS.
 
-## Yêu cầu
+## Requirements
 
-- NAS Synology có **Container Manager** (DSM 7.2 trở lên, đa số model "+" và một số model ARM64).
-- Camera có **RTSP**. Camera EZVIZ đã chạy được với Surveillance Station thì chắc chắn đã có RTSP.
-- Camera nên được đặt **IP cố định**: trong router, giữ IP (DHCP reservation) theo địa chỉ MAC của từng camera.
+- A Synology NAS with **Container Manager** (DSM 7.2 or later; most "+" models and some ARM64 models). Any other NAS or Linux machine with Docker works too.
+- Cameras with **RTSP**. If a camera already worked with Surveillance Station, it has RTSP.
+- A **fixed IP** for each camera: in the router or modem that gives the cameras their addresses, reserve an IP (DHCP reservation) for each camera's MAC address.
 
-## Cài đặt trên Synology
+## Install on Synology
 
-1. **Chép thư mục dự án lên NAS**, ví dụ vào `/volume1/docker/camnas`. Có thể dùng File Station hoặc ổ mạng SMB. Sau khi chép xong, thư mục có dạng:
+1. **Download the code** (*Code → Download ZIP* on GitHub, or `git clone`) and copy it to the NAS, for example to `/volume1/docker/camnas`, using File Station or an SMB share. The folder should look like this:
    ```
    camnas/
      docker-compose.yml
      app/   (Dockerfile, requirements.txt, nvr/...)
+     data/  (settings - CamNAS writes here)
    ```
-   **Không cần tự tạo thư mục nào.** CamNAS tự tạo thư mục `data/` (cấu hình camera, nhật ký) ngay trong thư mục dự án.
+   **You do not need to create any folders yourself.**
 2. **Container Manager → Project → Create**:
    - Project name: `camnas`
    - Path: `/volume1/docker/camnas`
    - Source: *Use existing docker-compose.yml*
-   - Bấm *Next*, rồi *Done*. Lần đầu NAS sẽ build image, mất vài phút.
-3. Mở **http://IP-của-NAS:8090** và đăng nhập bằng mật khẩu `admin`. Sau đó **đổi mật khẩu** ngay trong *Cài đặt*.
-4. Vào **Cài đặt → Thư mục lưu bản ghi** và chọn chỗ lưu. Bấm **Chọn…** để duyệt thư mục trên NAS, hoặc gõ đường dẫn, ví dụ `/volume1/camera` hoặc `/volume1/video/camera`. CamNAS tự tạo thư mục nếu chưa có.
-   - Thư mục nên nằm trong một **thư mục chia sẻ** có sẵn trong DSM thì mới xem được bằng File Station. Muốn có thư mục chia sẻ riêng tên `camera`, tạo tại *Control Panel → Shared Folder → Create*.
-   - Đổi sang thư mục khác trên cùng volume thì bản ghi cũ được chuyển theo ngay.
-   - Không nên bật Snapshot cho thư mục lưu: snapshot giữ lại dữ liệu đã xoá nên ổ không được giải phóng.
-5. Vào **Camera → Thêm camera**, chọn hãng **EZVIZ / Hikvision**, rồi nhập:
-   - IP của camera
-   - Tên đăng nhập `admin`
-   - Mật khẩu: **mã xác minh** (6 chữ in hoa trên nhãn dưới đáy camera)
+   - Click *Next*, then *Done*. The first build takes a few minutes.
+3. Open **http://NAS-IP:8090** and sign in with the password `admin`. Then **change the password** in *Settings*.
+4. **Recordings folder**: on the first run, recordings go to `/volume1/docker/camnas/recordings`. To change it, open **Settings → Recordings folder** and click **Browse…** to pick a folder on the NAS, or type a path such as `/volume1/camera`.
+   - Pick a folder inside a DSM **shared folder** so you can browse it in File Station.
+   - When you switch to another folder on the same volume, existing recordings are moved there instantly.
+   - Do not enable Snapshots on the recordings folder: snapshots keep deleted data, so disk space is never freed.
+5. Open **Cameras → Add camera**, choose the brand and enter the IP, username and password. For **EZVIZ**, the username is `admin` and the password is the **verification code** (6 capital letters on the label under the camera). Click **Test connection**; if the resolution shows up, click **Add camera**. Recording starts within seconds.
 
-   Bấm **Kiểm tra kết nối**. Nếu thấy độ phân giải hiện ra là đúng, bấm **Thêm camera**. Chỉ vài giây sau, camera bắt đầu ghi.
+   ![Add camera dialog with the EZVIZ preset](docs/screenshots/add-camera.jpg)
 
-> Khi CamNAS chạy ổn, hãy tắt Surveillance Station hoặc xoá camera khỏi Surveillance Station. Camera EZVIZ giới hạn số luồng RTSP đồng thời, nên hai phần mềm cùng kết nối dễ gây rớt hình.
+> If you used Surveillance Station before, stop it or remove the cameras from it once CamNAS works. Many cameras (EZVIZ in particular) limit the number of simultaneous RTSP streams, so two recorders connected at once can cause dropouts.
 
-### Quyền truy cập ổ đĩa
+Set `TZ` in `docker-compose.yml` to your time zone (for example `Europe/Berlin` or `America/New_York`). The default is `Asia/Ho_Chi_Minh`.
 
-Để chọn được thư mục lưu ngay trong giao diện, container được gắn cả `/volume1`. CamNAS chỉ ghi vào thư mục lưu bạn chọn. Nó chỉ tự dọn những thư mục camera do chính nó tạo (có file `.camnas` bên trong), không đụng tới dữ liệu khác trên NAS.
-
-- **Muốn giới hạn chặt hơn**: thay dòng `/volume1:/volume1` trong `docker-compose.yml` bằng một thư mục chia sẻ cụ thể, ví dụ `/volume1/camera:/volume1/camera`. Khi đó chỉ chọn được thư mục bên trong thư mục đó.
-- **NAS có nhiều volume**: bỏ dấu `#` ở dòng `/volume2:/volume2`.
-
-### Cài bằng dòng lệnh (SSH)
+### Install from the command line (SSH)
 
 ```bash
 cd /volume1/docker/camnas && sudo docker compose up -d --build
 ```
 
-## Lưu ý với camera EZVIZ
+### Disk access
 
-- Đường dẫn RTSP CamNAS tạo sẵn là `rtsp://admin:MÃXÁCMINH@IP:554/h264/ch1/main/av_stream` (luồng chính) và `.../h264/ch1/sub/av_stream` (luồng phụ).
-- **Mã hoá hình ảnh (Image/Video Encryption)** trong app EZVIZ phải **tắt**. Nếu bật, phần mềm khác không giải mã được hình.
-- Nếu camera đang nén **H.265**: CamNAS vẫn ghi bình thường, nhưng một số trình duyệt không phát được, như Firefox hoặc Chrome trên máy không có giải mã phần cứng. Nếu gặp lỗi đó, hãy chuyển camera sang **H.264**. Nút *Kiểm tra kết nối* sẽ cảnh báo khi camera dùng H.265.
-- Nên điền **luồng phụ**: lưới xem trực tiếp dùng luồng nhẹ hơn, đỡ tốn băng thông wifi. Bản ghi luôn dùng luồng chính.
+To let you pick the recordings folder in the web interface, the container gets access to `/volume1`. CamNAS only writes to the folder you choose, and its automatic cleanup only touches camera folders it created itself (marked with a `.camnas` file). It never touches other data on the NAS.
 
-## Dung lượng lưu trữ
+- **Stricter access**: replace the `/volume1:/volume1` line in `docker-compose.yml` with one shared folder, for example `/volume1/camera:/volume1/camera`. You can then only pick folders inside it.
+- **More than one volume**: uncomment the `/volume2:/volume2` line.
 
-Ước tính với 3 camera:
+## RTSP addresses by brand
 
-| Độ phân giải camera | Mỗi camera/ngày | 3 camera/ngày | Ổ 12 TB lưu được |
+| Brand | Main stream | Sub stream |
+|---|---|---|
+| EZVIZ / Hikvision | `rtsp://admin:VERIFICATIONCODE@IP:554/h264/ch1/main/av_stream` | `.../h264/ch1/sub/av_stream` |
+| Imou / Dahua | `rtsp://admin:PASSWORD@IP:554/cam/realmonitor?channel=1&subtype=0` | `...subtype=1` |
+| TP-Link Tapo | `rtsp://USER:PASSWORD@IP:554/stream1` | `.../stream2` |
+
+Choose the brand in the add-camera dialog and CamNAS builds these addresses for you.
+
+**EZVIZ notes**:
+- **Image/Video Encryption** must be **off** in the EZVIZ app; otherwise other software cannot decode the video.
+- If *Test connection* says **"The camera refused the connection"**, RTSP may be off. To turn it on: connect your phone to the same Wi-Fi as the camera, open the EZVIZ app, go to *Profile → Settings → LAN Live View*, pick the camera, sign in with `admin` and the verification code, then open *Settings → Local Service Settings → RTSP*. Menu names vary a little between app versions.
+- If the camera encodes **H.265**, CamNAS still records, but some browsers cannot play it (Firefox, or Chrome without hardware decoding). Switch the camera to **H.264** if that happens.
+- Fill in the **sub stream**: small tiles in the grid use the lighter stream to save Wi-Fi bandwidth. Recording always uses the main stream.
+
+## Storage
+
+Rough estimate for 3 cameras:
+
+| Camera resolution | Per camera/day | 3 cameras/day | 12 TB lasts |
 |---|---|---|---|
-| 1080p (~2 Mbps) | ~21 GB | ~65 GB | ~5–6 tháng |
-| 2K/3MP (~3–4 Mbps) | ~35–45 GB | ~105–130 GB | ~3 tháng |
+| 1080p (~2 Mbps) | ~21 GB | ~65 GB | ~5–6 months |
+| 2K/3MP (~3–4 Mbps) | ~35–45 GB | ~105–130 GB | ~3 months |
 
-Trong **Cài đặt** bạn có thể chỉnh:
-- **Giữ bản ghi trong N ngày**: mặc định 30. Đặt `0` để giữ đến khi ổ gần đầy.
-- **Dung lượng tối đa cho bản ghi**: nên đặt nếu ổ 12 TB còn chứa dữ liệu khác.
-- **Luôn chừa trống ít nhất X GB**: mặc định 50 GB. Khi ổ trống ít hơn mức này, file cũ nhất sẽ bị xoá. Bản ghi trong 24 giờ gần nhất không bao giờ bị xoá vì lý do thiếu chỗ.
+In **Settings** you can set:
+- **Keep recordings for N days**: default 30. Use `0` to keep recordings until the disk is nearly full.
+- **Maximum space for recordings**: useful if the disk also holds other data.
+- **Always keep at least X GB free**: default 50 GB. When free space drops below this, the oldest files are deleted. Recordings from the last 24 hours are never deleted for lack of space.
 
-Trang Cài đặt cũng hiển thị dung lượng trung bình mỗi ngày và số ngày ước tính lưu được.
+Settings also shows the average space used per day and how many days the disk can hold.
 
-## Xem từ xa (ngoài mạng nhà)
+## Remote access
 
-**Đừng** mở cổng 8090 thẳng ra Internet. Có hai cách an toàn:
-- **Tailscale** (có trong Package Center): cài trên NAS và điện thoại, rồi mở `http://<IP-Tailscale-của-NAS>:8090`. Đây là cách đơn giản và an toàn nhất.
-- **Reverse proxy của DSM** (*Control Panel → Login Portal → Advanced → Reverse Proxy*) kèm chứng chỉ HTTPS Let's Encrypt và tên miền DDNS. Phải bật mục WebSocket (*Custom Header → Create → WebSocket*) để xem trực tiếp hoạt động.
+**Do not** forward port 8090 to the internet. Two safe options:
+- **Tailscale** (in Package Center): install it on the NAS and on your phone, then open `http://<NAS-Tailscale-IP>:8090`. This is the simplest and safest option.
+- **DSM reverse proxy** (*Control Panel → Login Portal → Advanced → Reverse Proxy*) with a Let's Encrypt HTTPS certificate and a DDNS name. Enable WebSocket (*Custom Header → Create → WebSocket*) or live view will not work.
 
-## Phím tắt
+## Keyboard shortcuts
 
-| Trang | Phím |
+| Page | Keys |
 |---|---|
-| Trực tiếp | `1`–`9`: phóng to camera tương ứng · `←`/`→`: chuyển camera · `Esc`: về lưới |
-| Xem lại | `Space`: phát/dừng · `←`/`→`: lùi/tới 10 giây (`Shift` để nhảy 1 phút) · `PageUp`/`PageDown`: đoạn trước/sau · `[` `]`: đánh dấu đầu/cuối clip · `+`/`-`: phóng to/thu nhỏ dòng thời gian · `M`: tắt tiếng |
+| Live | `1`–`9`: enlarge that camera · `←`/`→`: next/previous camera · `Esc`: back to grid |
+| Playback | `Space`: play/pause · `←`/`→`: back/forward 10 s (`Shift` for 1 min) · `PageUp`/`PageDown`: previous/next segment · `[` `]`: mark clip start/end · `+`/`-`: zoom timeline · `M`: mute |
 
-## Cập nhật / sao lưu
+## Updating and backup
 
-- **Cập nhật**: chép đè thư mục `app/` và file `docker-compose.yml` mới (đừng xoá thư mục `data/`). Trong *Container Manager → Project → camnas*, bấm *Stop*, rồi *Action → Build* (chỉ bấm *Start* thì NAS vẫn chạy bản cũ đã build trước đó). Hoặc chạy lại lệnh `docker compose up -d --build`. Sau khi cập nhật, bấm Ctrl+F5 trên trình duyệt rồi xem số phiên bản ở *Cài đặt → Hệ thống*.
-- **Sao lưu cấu hình**: thư mục `data/` trong thư mục dự án chứa `config.json` (danh sách camera, **mật khẩu camera**, thư mục lưu đã chọn) và nhật ký. Hãy giữ thư mục này cẩn thận.
+- **Update**: download the new version and copy the `app/` folder over the old one. **Keep the `data/` folder.** Only copy `docker-compose.yml` when the new version changes it, and keep your own edits. In *Container Manager → Project → camnas*, click *Stop*, then *Action → Build*; clicking only *Start* keeps running the previously built version. Or run `docker compose up -d --build` again. Afterwards press Ctrl+F5 in the browser and check the version in *Settings → System*.
+- **Backup**: the `data/` folder holds `config.json` (camera list, **camera passwords**, chosen recordings folder) and the event log. Keep it safe and do not share it.
 
-## Xử lý sự cố
+## Troubleshooting
 
-- **Project không chạy, báo `Bind mount failed: '/volume1/...' does not exist`**: bạn đang dùng `docker-compose.yml` bản cũ. Hãy chép bản mới đè lên; bản mới chỉ gắn thư mục dự án và `/volume1`, là những chỗ luôn có sẵn.
-- **Nhật ký báo "Thư mục lưu bản ghi ... chưa dùng được"**: vào *Cài đặt → Thư mục lưu bản ghi* và chọn một thư mục khác.
-- Xem trang **Nhật ký** trong ứng dụng trước. Mọi lỗi kết nối camera đều được ghi ở đó.
-- **"Camera từ chối kết nối"** khi bấm *Kiểm tra kết nối*: camera không mở cổng RTSP 554. Với EZVIZ, hãy bật RTSP: cho điện thoại bắt cùng wifi với camera, mở app EZVIZ, vào *Tôi → Cài đặt → LAN Live View*, chọn camera, đăng nhập bằng `admin` + mã xác minh, rồi vào *Cài đặt → Local Service Settings → RTSP*. Tên menu có thể khác một chút tuỳ phiên bản app. Cũng nên kiểm tra lại IP camera có đúng không.
-- Xem log của container: *Container Manager → Container → camnas → Log*, hoặc chạy `sudo docker logs camnas`.
-- **Camera báo "Không lấy được hình"**: kiểm tra IP camera có đổi không, mã xác minh có đúng không, và mục mã hoá hình ảnh đã tắt chưa. Dùng nút *Kiểm tra kết nối* trong trang sửa camera.
-- **Xem lại bị trắng / không phát**: thường do camera dùng H.265 (xem mục EZVIZ ở trên).
-- **Không xem được trực tiếp nhưng vẫn ghi bình thường**: thử trình duyệt Chrome/Edge/Safari bản mới.
+- Check the **Logs** page first; every camera connection error is logged there.
+- **The project does not start: `Bind mount failed: '/volume1/...' does not exist`**: you are using an old `docker-compose.yml`. Copy the current one; it only mounts the project folder and `/volume1`, which always exist.
+- **Log says "The recordings folder ... cannot be used"**: pick another folder in *Settings → Recordings folder*.
+- **"Cannot get video from the camera"**: check whether the camera IP changed, the password is right, and (for EZVIZ) image encryption is off. Use *Test connection* in the edit-camera dialog.
+- **Playback stays black**: usually the camera uses H.265 (see the EZVIZ notes).
+- **Live view does not work but recording does**: try a recent Chrome, Edge or Safari.
+- **Cameras and NAS on different networks** (for example cameras on the ISP modem's Wi-Fi and the NAS behind a second router): the NAS can still reach the cameras, as long as the two networks use different address ranges.
+- Container logs: *Container Manager → Container → camnas → Log*, or `sudo docker logs camnas`.
 
-## Chạy thử trên máy tính (dành cho lập trình)
+## Running locally (development)
 
-Cần Python 3.11+, `ffmpeg`/`ffprobe` và file chạy `go2rtc` ([tải tại đây](https://github.com/AlexxIT/go2rtc/releases)).
+You need Python 3.11+, `ffmpeg`/`ffprobe` and the `go2rtc` binary ([releases](https://github.com/AlexxIT/go2rtc/releases)).
 
 ```bash
-cd app && pip install -r requirements.txt && DATA_DIR=./_data RECORDINGS_DIR=./_rec GO2RTC_BIN=/đường/dẫn/go2rtc python -m nvr
+cd app && pip install -r requirements.txt && DATA_DIR=./_data RECORDINGS_DIR=./_rec GO2RTC_BIN=/path/to/go2rtc python -m nvr
 ```
 
-Ứng dụng sẽ chạy ở http://localhost:8080. Các biến môi trường khác có thể đặt: `FFMPEG`, `FFPROBE`, `HTTP_PORT`, `ADMIN_PASSWORD`, và `STORAGE_ROOTS` (các thư mục gốc được phép chọn làm chỗ lưu, ngăn cách bằng `:`; trên Windows dùng `;`).
+The app runs at http://localhost:8080. Other environment variables: `FFMPEG`, `FFPROBE`, `HTTP_PORT`, `ADMIN_PASSWORD`, and `STORAGE_ROOTS` (allowed root folders for recordings, separated by `:`, or `;` on Windows).
+
+UI translations live in `app/nvr/web/i18n.js`; server-side messages in `app/nvr/i18n.py`.
+
+## Credits and license
+
+- [go2rtc](https://github.com/AlexxIT/go2rtc) (MIT): receives the camera streams and serves live video to the browser. The CamNAS Docker image is built on the official go2rtc image.
+- [FFmpeg](https://ffmpeg.org): recording and cutting the video files.
+- CamNAS is released under the [MIT License](LICENSE).
+
+CamNAS is not affiliated with Synology, EZVIZ or any camera manufacturer mentioned here; their names are used only to describe compatibility.
