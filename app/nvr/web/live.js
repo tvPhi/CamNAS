@@ -5,6 +5,26 @@ import { t } from './i18n.js';
 
 let playerReady = null;
 
+// go2rtc đặt tốc độ phát = số giây còn trong bộ đệm (0.1× tới 5×) để bám sát thời gian thực.
+// Mạng điện thoại / wifi gửi dữ liệu từng đợt nên hình lúc như quay chậm, lúc tua nhanh.
+// Ở đây chỉ cho lệch nhẹ quanh 1× để đệm dần về ~1 giây; trễ quá xa thì nhảy tới gần cuối đệm.
+const LIVE_BUFFER = 1;
+function smoothLiveRate(video) {
+  const native = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'playbackRate');
+  Object.defineProperty(video, 'playbackRate', {
+    configurable: true,
+    get() { return native.get.call(this); },
+    set(gap) {
+      if (gap > 3 && !this.paused) {
+        this.currentTime += gap - LIVE_BUFFER;
+        gap = LIVE_BUFFER;
+      }
+      const rate = Math.min(1.15, Math.max(0.85, 1 + (gap - LIVE_BUFFER) * 0.25));
+      if (Math.abs(rate - native.get.call(this)) > 0.01) native.set.call(this, rate);
+    },
+  });
+}
+
 // Trình phát của go2rtc (MSE, độ trễ thấp ~1 giây). Được nạp qua máy chủ CamNAS.
 export function loadPlayer() {
   if (!playerReady) {
@@ -14,6 +34,8 @@ export function loadPlayer() {
         constructor() {
           super();
           this.mode = 'mse,hls,mjpeg';
+          // ô cuộn ra khỏi màn hình (điện thoại xếp các ô theo cột) thì ngắt luồng sau 5 giây
+          this.visibilityThreshold = 0.01;
         }
 
         oninit() {
@@ -21,6 +43,12 @@ export function loadPlayer() {
           this.video.controls = false;
           this.video.muted = true;
           this.video.addEventListener('playing', () => this.setAttribute('state', 'playing'));
+          smoothLiveRate(this.video);
+        }
+
+        // Bỏ qua khi chưa có luồng: play() lỗi sẽ khiến go2rtc tự tắt tiếng ô đang bật âm thanh
+        play() {
+          if (this.video.src || this.video.srcObject) super.play();
         }
 
         onconnect() {
@@ -55,11 +83,15 @@ export function loadPlayer() {
           };
         }
 
-        // Như ondisconnect() của go2rtc nhưng gỡ src thay vì đặt src='' (cách đó sinh lỗi "Empty src" trong console)
         close() {
           clearTimeout(this.reconnectTID);
           clearTimeout(this.disconnectTID);
           this.reconnectTID = this.disconnectTID = 0;
+          this.ondisconnect();
+        }
+
+        // Như của go2rtc nhưng gỡ src thay vì đặt src='' (cách đó sinh lỗi "Empty src" trong console)
+        ondisconnect() {
           this.wsState = WebSocket.CLOSED;
           this.ws?.close();
           this.ws = null;
@@ -71,6 +103,8 @@ export function loadPlayer() {
             this.video.srcObject = null;
             this.video.load();
           }
+          // kết nối lại (cuộn tới / mở lại ứng dụng) thì hiện vòng chờ thay vì ô đen
+          this.setAttribute('state', 'loading');
         }
       }
       customElements.define('cam-live', CamLive);
@@ -244,6 +278,8 @@ export function LivePage(main, params) {
       if (pick === 'hd') return cam.id;
       if (pick === 'sd') return `${cam.id}_sub`;
       if (single || document.fullscreenElement === el) return cam.id;
+      // điện thoại: các ô xếp thành cột, giải mã nhiều luồng chính cùng lúc rất giật; chạm vào ô để xem nét
+      if (matchMedia('(max-width: 720px)').matches) return `${cam.id}_sub`;
       // tự động: ô đủ lớn thì luồng phụ bị phóng to sẽ nhoè, nên dùng luồng chính
       const px = el.clientWidth * Math.min(window.devicePixelRatio || 1, 2);
       return px >= AUTO_HD_WIDTH ? cam.id : `${cam.id}_sub`;

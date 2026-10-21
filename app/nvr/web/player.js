@@ -170,7 +170,10 @@ export class SegmentPlayer {
       v.muted = this.muted;
       this._show();
       this._play(v);
+      // nhả bộ đệm + bộ giải mã của đoạn vừa phát xong (điện thoại ít RAM và ít bộ giải mã phần cứng)
       old.pause();
+      old.removeAttribute('src');
+      old.load();
     } else {
       this._load(next, 0, true);
     }

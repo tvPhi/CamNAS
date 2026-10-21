@@ -78,8 +78,11 @@ export function PlaybackPage(main, params) {
     onTime: ts => {
       if (ts === null) return;
       timeline.setPlayhead(ts);
-      clock.firstChild.textContent = fmtTime(ts);
-      clock.lastChild.textContent = fmtDate(ts);
+      const time = fmtTime(ts);
+      if (clock.firstChild.textContent !== time) {
+        clock.firstChild.textContent = time;
+        clock.lastChild.textContent = fmtDate(ts);
+      }
     },
     onState: playing => {
       playBtn.replaceChildren(icon(playing ? 'pause' : 'play', 22));

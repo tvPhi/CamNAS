@@ -81,6 +81,8 @@ export class Timeline {
   setRange(range) { this.range = range; this.draw(); }
 
   setPlayhead(ts) {
+    const prev = this.playhead;
+    const view = this.viewStart;
     this.playhead = ts;
     if (ts !== null && Date.now() > this.followPausedUntil && this.span < DAY) {
       const margin = this.span * 0.05;
@@ -89,6 +91,9 @@ export class Timeline {
         this._clamp();
       }
     }
+    // gọi vài lần mỗi giây khi đang phát: chỉ vẽ lại khi vạch đang phát dịch được ít nhất 1 điểm ảnh
+    if (prev !== null && ts !== null && view === this.viewStart
+        && Math.round(this.tsToX(prev)) === Math.round(this.tsToX(ts))) return;
     this.draw();
   }
 
