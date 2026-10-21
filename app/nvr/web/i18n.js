@@ -84,6 +84,8 @@ const EN = {
   'Không lấy được hình từ camera': 'Cannot get video from the camera',
   'Đang xem luồng phụ (nhẹ, mờ hơn) - bấm để đổi': 'Showing the sub stream (lighter, less sharp) - click to switch',
   'Đang xem luồng chính (nét nhất) - bấm để đổi': 'Showing the main stream (sharpest) - click to switch',
+  'Trình duyệt này không giải mã được luồng video của camera (thường do chuẩn nén H.265), đang hiện từng ảnh JPEG nên rất giật. Hãy đặt camera dùng H.264.':
+    'This browser cannot decode the camera\'s video stream (usually H.265), so it is showing individual JPEG images and will be very choppy. Set the camera to H.264.',
   'Camera này chỉ có luồng chính': 'This camera only has a main stream',
   'Không chụp được ảnh từ camera': 'Could not take a snapshot from the camera',
   'Đang tải trình phát…': 'Loading player…',

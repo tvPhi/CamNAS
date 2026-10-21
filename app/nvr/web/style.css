@@ -181,6 +181,7 @@ select { width: auto; padding-right: 28px; }
 }
 .q-chip:hover:not(:disabled) { background: rgba(0,0,0,.8); color: #fff; }
 .q-chip:disabled { cursor: default; }
+.q-chip.warn, .q-chip.warn:hover:not(:disabled) { background: var(--warn); color: #111; }
 .tile-name { font-weight: 600; text-shadow: 0 1px 2px #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .badge { font-size: 11px; font-weight: 700; letter-spacing: .3px; padding: 2px 7px; border-radius: 5px; background: rgba(0,0,0,.55); color: #cbd2df; white-space: nowrap; }
 .badge.s-recording { background: var(--rec); color: #fff; }

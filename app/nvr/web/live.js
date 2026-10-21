@@ -74,8 +74,12 @@ export function loadPlayer() {
           return reconnecting;
         }
 
+        // go2rtc tự chuyển sang MJPEG khi trình duyệt không giải mã được luồng (thường là H.265):
+        // NAS phải mã hoá lại từng khung thành ảnh JPEG nên hình rất giật
         onmjpeg() {
           super.onmjpeg();
+          this.dataset.mode = 'mjpeg';
+          this.dispatchEvent(new Event('mjpeg'));
           const draw = this.ondata;
           this.ondata = data => {
             draw(data);
@@ -131,6 +135,8 @@ const QUALITIES = [
 ];
 // Ô rộng hơn ngần này điểm ảnh thì luồng phụ (thường chỉ 640×360) bị phóng to, trông mờ
 const AUTO_HD_WIDTH = 800;
+// camera mà trình duyệt này không giải mã được luồng chính (nhớ đến khi tải lại trang)
+const mainUnsupported = new Set();
 
 function autoLayout(n) {
   return n <= 1 ? 1 : n === 2 ? 2 : n === 3 ? 3 : n === 4 ? 4 : 9;
@@ -276,7 +282,7 @@ export function LivePage(main, params) {
       if (!cam.sub_url) return cam.id;
       const pick = prefs.get(`live.quality.${cam.id}`, null) || quality;
       if (pick === 'hd') return cam.id;
-      if (pick === 'sd') return `${cam.id}_sub`;
+      if (pick === 'sd' || mainUnsupported.has(cam.id)) return `${cam.id}_sub`;
       if (single || document.fullscreenElement === el) return cam.id;
       // điện thoại: các ô xếp thành cột, giải mã nhiều luồng chính cùng lúc rất giật; chạm vào ô để xem nét
       if (matchMedia('(max-width: 720px)').matches) return `${cam.id}_sub`;
@@ -305,6 +311,14 @@ export function LivePage(main, params) {
         player.video.muted = muted;
         player.video.addEventListener('resize', updateChip);
       }
+      player.addEventListener('mjpeg', () => {
+        // luồng chính phải chạy MJPEG: thử luồng phụ (thường nhẹ hơn hoặc là H.264)
+        if (cam.sub_url && !stream.endsWith('_sub')) {
+          mainUnsupported.add(cam.id);
+          attach();
+        }
+        updateChip();
+      });
       stateObserver.disconnect();
       stateObserver.observe(player, { attributes: true, attributeFilter: ['state'] });
       updateChip();
@@ -313,9 +327,12 @@ export function LivePage(main, params) {
     function updateChip() {
       const sd = stream.endsWith('_sub');
       const v = player?.video;
-      qBtn.textContent = (sd ? 'SD' : 'HD') + (v?.videoHeight ? ` ${v.videoHeight}p` : '');
+      const mjpeg = player?.dataset.mode === 'mjpeg';
+      qBtn.textContent = (sd ? 'SD' : 'HD') + (mjpeg ? ' JPEG' : v?.videoHeight ? ` ${v.videoHeight}p` : '');
+      qBtn.classList.toggle('warn', mjpeg);
       qBtn.disabled = !cam.sub_url;
-      qBtn.title = !cam.sub_url ? t('Camera này chỉ có luồng chính')
+      qBtn.title = mjpeg ? t('Trình duyệt này không giải mã được luồng video của camera (thường do chuẩn nén H.265), đang hiện từng ảnh JPEG nên rất giật. Hãy đặt camera dùng H.264.')
+        : !cam.sub_url ? t('Camera này chỉ có luồng chính')
         : sd ? t('Đang xem luồng phụ (nhẹ, mờ hơn) - bấm để đổi') : t('Đang xem luồng chính (nét nhất) - bấm để đổi');
     }
 
