@@ -1,0 +1,9 @@
+#!/bin/sh
+# Các bản thử nghiệm trước 1.4.0 khai báo cổng 8090 bằng port-config. DSM không xoá file đó khi gói mới
+# thôi khai báo, nên lúc nâng cấp Container Manager báo "Port conflict" khi đăng ký cổng cho container.
+# Gói chạy bằng tài khoản CamNAS (chủ file) nhưng không được xoá trong thư mục của root: làm rỗng file.
+SC=/usr/local/etc/services.d/CamNAS.sc
+if [ -f "$SC" ] && grep -q "8090" "$SC" 2>/dev/null; then
+    rm -f "$SC" 2>/dev/null || : > "$SC" 2>/dev/null
+fi
+exit 0

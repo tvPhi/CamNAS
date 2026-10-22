@@ -1,0 +1,26 @@
+services:
+  camnas:
+    build: ./app
+    image: camnas:latest
+    container_name: camnas
+    restart: unless-stopped
+    ports:
+      - "8090:8080" # web UI: http://<NAS-IP>:8090
+      - "8443:8443" # HTTPS with the NAS certificate: https://<your-domain>:8443
+    environment:
+      TZ: Asia/Ho_Chi_Minh # your time zone, e.g. Europe/Berlin
+      ADMIN_PASSWORD: admin # first sign-in password - change it in Settings
+      DATA_DIR: /camnas/data # = the data/ folder inside this project folder (created automatically)
+      RECORDINGS_DIR: /volume1/docker/camnas/recordings # recordings folder on first run - change it in Settings
+    volumes:
+      # Only folders that always exist, so Synology never fails with "Bind mount failed".
+      - .:/camnas # this project folder (holds data/: camera list, logs)
+      - /volume1:/volume1 # lets you pick/create the recordings folder from the web UI
+      - /usr/syno/etc/certificate:/certs:ro # DSM certificates (read-only) for HTTPS
+      # - /volume2:/volume2 # uncomment to store recordings on another volume
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

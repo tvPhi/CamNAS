@@ -1,0 +1,3 @@
+#!/bin/sh
+# Không cần làm gì thêm: Package Center và Container Manager lo phần cài đặt.
+exit 0

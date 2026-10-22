@@ -1,0 +1,25 @@
+#!/bin/sh
+# Container CamNAS do Container Manager quản lý (docker-project trong conf/resource):
+# DSM tự chạy nó trước "start" và dừng nó sau "stop". Script này chỉ báo trạng thái.
+TARGET="${SYNOPKG_PKGDEST:-/var/packages/CamNAS/target}"
+FLAG="$TARGET/.running"
+
+case "$1" in
+    start)
+        touch "$FLAG" 2>/dev/null
+        exit 0
+        ;;
+    stop)
+        rm -f "$FLAG"
+        exit 0
+        ;;
+    status)
+        [ -f "$FLAG" ] && exit 0
+        # phòng khi không ghi được file đánh dấu: hỏi thẳng giao diện web
+        curl -fs -o /dev/null --max-time 3 http://127.0.0.1:8090/api/me && exit 0
+        exit 3
+        ;;
+    *)
+        exit 0
+        ;;
+esac

@@ -1,0 +1,6 @@
+data/*
+!data/README.txt
+recordings/
+dist/
+__pycache__/
+*.pyc
