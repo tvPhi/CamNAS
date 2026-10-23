@@ -16,6 +16,7 @@ CamNAS is a free, self-hosted NVR that runs in Docker on your NAS. It records yo
 
 - **Live view**: camera grid (1, 1 large + 2 small, 2×2, 3×3) with about 1 second of latency. Quality switch **Auto / HD / SD**. Double-click a camera to enlarge it. Snapshot, full screen and audio.
 - **Playback**: 24-hour timeline with one row per camera. Drag, zoom with the mouse wheel, click anywhere to play. Segments play back to back. Speed from 0.5× to 16×. Mark start and end to **export an mp4 clip**.
+- **Share one camera by link**: anyone with the link watches that camera live without a CamNAS account. Optional password and expiry date; revoke a link at any time.
 - **Cameras**: add, edit, delete, turn recording on or off, test the connection. Presets for EZVIZ/Hikvision, Imou/Dahua and TP-Link Tapo, or enter any RTSP URL.
 - **Automatic cleanup**: delete recordings older than N days, or the oldest recordings when the disk is nearly full.
 - **Choose the recordings folder** from the web interface, with a folder browser for the NAS.
@@ -146,6 +147,16 @@ Settings also shows the average space used per day and how many days the disk ca
   - Without Web Station: *Control Panel → Login Portal → Advanced → Reverse Proxy → Create* with source **HTTPS** port **8443**, destination **HTTP** `localhost` port **8090**, plus *Custom Header → Create → WebSocket*.
 - **docker-compose: built-in HTTPS.** The container runs as root, so CamNAS also listens on port **8443** with the NAS's own certificate (for example from Let's Encrypt in *Control Panel → Security → Certificate*). Forward TCP **8443** to the NAS and open `https://your-domain:8443`. Pick another certificate in *Settings → HTTPS access*. When DSM renews the certificate, CamNAS loads the new one by itself.
 - **Tailscale** (in Package Center): install it on the NAS and on your phone, then open `http://<NAS-Tailscale-IP>:8090`. No port forwarding at all.
+
+## Sharing a camera
+
+*Cameras* → share icon on a camera → *Create link*. Each link opens a live view of that one camera only (no playback, no other cameras, no settings), with an HD/SD switch.
+
+- **Expires after**: the link stops working once that day is over (NAS time); tick *Never expires* to keep it.
+- **Password** (optional, 4+ characters): the viewer types it once per browser; the session lasts up to 30 days or until the link expires.
+- **Revoke**: the trash icon cuts off anyone watching right away. Deleting a camera also deletes its links.
+- Links use the HTTPS address from *Settings → Remote access (HTTPS)* when it is set, so they work from outside your home network; otherwise they use the address you opened CamNAS with.
+- Wrong link passwords are logged in the event log and lock that address out for a minute after 5 tries.
 
 ## Keyboard shortcuts
 

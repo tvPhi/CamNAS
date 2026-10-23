@@ -22,11 +22,11 @@ from starlette.background import BackgroundTask
 from websockets.asyncio.client import connect as ws_connect
 from websockets.exceptions import WebSocketException
 
-from . import __version__, storage
-from .auth import COOKIE, SESSION_SECONDS, Auth
+from . import __version__, shares, storage
+from .auth import COOKIE, SESSION_SECONDS, Auth, hash_password, verify_password
 from .config import (
     CAMERA_ID_RE, DATA_DIR, DEFAULT_RECORDINGS_DIR, GO2RTC_URL, INSTALL, Camera, Config, ConfigStore, Settings,
-    process_user, recordings_dir, set_recordings_dir, storage_roots,
+    Share, process_user, recordings_dir, set_recordings_dir, storage_roots,
 )
 from .events import EventLog
 from .go2rtc import Go2rtc, stream_names
@@ -53,6 +53,7 @@ class Ctx:
     retention_now: asyncio.Event
     https: HttpsServer
     updates: UpdateChecker
+    share_viewers: dict[str, set[WebSocket]]  # người đang xem qua từng link chia sẻ
 
 
 ctx = Ctx()
@@ -103,6 +104,7 @@ async def lifespan(_: FastAPI):
     ctx.retention_now = asyncio.Event()
     ctx.https = HttpsServer(app, ctx.events)
     ctx.updates = UpdateChecker(ctx.events)
+    ctx.share_viewers = {}
 
     ctx.events.add("info", "CamNAS {version} khởi động với {n} camera", version=__version__, n=len(ctx.store.config.cameras))
     saved_dir = ctx.store.config.settings.recordings_dir
@@ -253,7 +255,8 @@ def _check_urls(url: str | None, sub_url: str | None) -> None:
 
 
 def camera_out(cam: Camera) -> dict:
-    return {**cam.model_dump(), "status": ctx.recorders.status(cam.id)}
+    active = sum(1 for s in ctx.store.config.shares if s.camera == cam.id and not shares.expired(s))
+    return {**cam.model_dump(), "status": ctx.recorders.status(cam.id), "shares": active}
 
 
 def get_camera(cam_id: str) -> Camera:
@@ -300,12 +303,76 @@ async def update_camera(cam_id: str, body: CameraPatch):
 async def delete_camera(cam_id: str, purge: bool = False):
     cam = get_camera(cam_id)
     ctx.store.config.cameras.remove(cam)
+    removed = [s for s in ctx.store.config.shares if s.camera == cam_id]
+    ctx.store.config.shares = [s for s in ctx.store.config.shares if s.camera != cam_id]
     ctx.store.save()
+    for share in removed:
+        await close_share_viewers(share.id)
     await apply_changes()
     if purge:
         await asyncio.to_thread(shutil.rmtree, recordings_dir() / cam_id, True)
     ctx.events.add("info", "Xoá camera \"{name}\" và toàn bộ bản ghi" if purge else "Xoá camera \"{name}\"", cam_id, name=cam.name)
     return {"ok": True}
+
+
+# ---------- link chia sẻ camera (quản trị) ----------
+
+class ShareIn(BaseModel):
+    camera: str
+    label: str = Field("", max_length=60)
+    expires: str = ""  # YYYY-MM-DD; trống = không hết hạn
+    password: str = Field("", max_length=128)
+
+
+@api.get("/api/shares")
+def list_shares():
+    return [shares.share_out(s) for s in ctx.store.config.shares]
+
+
+@api.post("/api/shares")
+def create_share(body: ShareIn):
+    cam = get_camera(body.camera)
+    expires = body.expires.strip()
+    if expires:
+        try:
+            day = date.fromisoformat(expires)
+        except ValueError:
+            raise HTTPException(400, tr("Ngày hết hạn không hợp lệ")) from None
+        if day < date.today():
+            raise HTTPException(400, tr("Ngày hết hạn đã qua"))
+        expires = day.isoformat()
+    if body.password and len(body.password) < 4:
+        raise HTTPException(400, tr("Mật khẩu của link cần ít nhất 4 ký tự"))
+    share = Share(id=shares.new_id(), camera=cam.id, label=body.label.strip(), expires=expires,
+                  password_hash=hash_password(body.password) if body.password else "", created=time.time())
+    ctx.store.config.shares.append(share)
+    ctx.store.save()
+    if expires:
+        ctx.events.add("info", "Tạo link chia sẻ camera \"{name}\", hết hạn sau ngày {date}", cam.id,
+                       name=cam.name, date=date.fromisoformat(expires).strftime("%d/%m/%Y"))
+    else:
+        ctx.events.add("info", "Tạo link chia sẻ camera \"{name}\", không hết hạn", cam.id, name=cam.name)
+    return shares.share_out(share)
+
+
+@api.delete("/api/shares/{share_id}")
+async def delete_share(share_id: str):
+    share = next((s for s in ctx.store.config.shares if s.id == share_id), None)
+    if not share:
+        raise HTTPException(404, tr("Link chia sẻ không tồn tại hoặc đã bị thu hồi"))
+    ctx.store.config.shares.remove(share)
+    ctx.store.save()
+    await close_share_viewers(share.id)
+    cam = ctx.store.camera(share.camera)
+    ctx.events.add("info", "Thu hồi link chia sẻ camera \"{name}\"", share.camera, name=cam.name if cam else share.camera)
+    return {"ok": True}
+
+
+async def close_share_viewers(share_id: str) -> None:
+    """Ngắt ngay những người đang xem qua link vừa bị thu hồi."""
+    for ws in ctx.share_viewers.pop(share_id, set()):
+        with suppress(Exception):
+            await ws.close(code=4410)
 
 
 class ProbeIn(BaseModel):
@@ -640,7 +707,7 @@ def events(limit: int = 300, camera: str | None = None, level: str | None = None
 
 # ---------- xem trực tiếp (chuyển tiếp go2rtc) ----------
 
-@api.get("/live/{name}")
+@app.get("/live/{name}")  # mã trình phát của go2rtc: công khai, trang xem link chia sẻ cũng cần
 async def live_asset(name: str):
     if name not in ("video-rtc.js", "video-stream.js"):
         raise HTTPException(404)
@@ -650,12 +717,16 @@ async def live_asset(name: str):
     return Response(data, media_type="application/javascript")
 
 
-@api.get("/api/live/hls/{path:path}")
-async def live_hls(path: str, request: Request):
-    # Dự phòng cho iPhone đời cũ chưa có MSE
+async def proxy_hls(path: str, request: Request) -> Response:
     async with httpx.AsyncClient(base_url=GO2RTC_URL, timeout=20) as client:
         r = await client.get(f"/api/hls/{path}", params=request.query_params)
     return Response(r.content, status_code=r.status_code, media_type=r.headers.get("content-type"))
+
+
+@api.get("/api/live/hls/{path:path}")
+async def live_hls(path: str, request: Request):
+    # Dự phòng cho iPhone đời cũ chưa có MSE
+    return await proxy_hls(path, request)
 
 
 @app.websocket("/api/live/ws")
@@ -664,6 +735,11 @@ async def live_ws(ws: WebSocket, src: str = ""):
         await ws.close(code=4401)
         return
     await ws.accept()
+    await proxy_live(ws, src)
+
+
+async def proxy_live(ws: WebSocket, src: str, timeout: float | None = None) -> None:
+    """Chuyển tiếp WebSocket của trình phát tới go2rtc; timeout: tự ngắt sau ngần ấy giây (link hết hạn)."""
     upstream_url = GO2RTC_URL.replace("http", "ws", 1) + f"/api/ws?src={src}"
     try:
         async with ws_connect(upstream_url, max_size=None, compression=None) as upstream:
@@ -686,7 +762,7 @@ async def live_ws(ws: WebSocket, src: str = ""):
                         await ws.send_text(msg)
 
             tasks = [asyncio.create_task(client_to_upstream()), asyncio.create_task(upstream_to_client())]
-            _, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            _, pending = await asyncio.wait(tasks, timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
             for t in pending:
                 t.cancel()
             await asyncio.gather(*pending, return_exceptions=True)
@@ -694,6 +770,91 @@ async def live_ws(ws: WebSocket, src: str = ""):
         pass
     with suppress(Exception):
         await ws.close()
+
+
+# ---------- link chia sẻ camera (người xem, không cần tài khoản) ----------
+
+def open_share(share_id: str) -> tuple[Share, Camera]:
+    share = next((s for s in ctx.store.config.shares if s.id == share_id), None)
+    cam = ctx.store.camera(share.camera) if share else None
+    if not share or not cam:
+        raise HTTPException(404, tr("Link chia sẻ không tồn tại hoặc đã bị thu hồi"))
+    if shares.expired(share):
+        raise HTTPException(410, tr("Link chia sẻ đã hết hạn"))
+    return share, cam
+
+
+def share_authorized(share: Share, cookies) -> bool:
+    return not share.password_hash or ctx.auth.valid_share_token(
+        share.id, share.password_hash, cookies.get(shares.cookie_name(share)))
+
+
+@app.get("/s/{share_id}")
+def share_page(share_id: str):
+    return FileResponse(WEB_DIR / "share.html", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/api/share/{share_id}")
+def share_info(share_id: str, request: Request):
+    share, cam = open_share(share_id)
+    return {
+        "camera": cam.name,
+        "expires": share.expires,
+        "password": bool(share.password_hash),
+        "authorized": share_authorized(share, request.cookies),
+        "sub": bool(cam.sub_url),
+    }
+
+
+class ShareLoginIn(BaseModel):
+    password: str = Field(max_length=128)
+
+
+@app.post("/api/share/{share_id}/login")
+def share_login(share_id: str, body: ShareLoginIn, request: Request, response: Response):
+    share, cam = open_share(share_id)
+    ip = request.client.host if request.client else "?"
+    wait = ctx.auth.locked_for(f"share:{ip}")
+    if wait:
+        raise HTTPException(429, tr("Sai mật khẩu quá nhiều lần, thử lại sau {wait} giây", wait=wait))
+    ok = not share.password_hash or verify_password(body.password, share.password_hash)
+    ctx.auth.register_attempt(f"share:{ip}", ok)
+    if not ok:
+        ctx.events.add("warn", "Nhập sai mật khẩu link chia sẻ camera \"{name}\" từ {ip}", cam.id, name=cam.name, ip=ip)
+        raise HTTPException(401, tr("Sai mật khẩu"))
+    seconds = shares.session_seconds(share)
+    response.set_cookie(shares.cookie_name(share), ctx.auth.make_share_token(share.id, share.password_hash, seconds),
+                        max_age=seconds, httponly=True, samesite="lax", secure=request.url.scheme == "https",
+                        path=f"/api/share/{share.id}")
+    return {"ok": True}
+
+
+@app.get("/api/share/{share_id}/hls/{path:path}")
+async def share_hls(share_id: str, path: str, request: Request):
+    share, _ = open_share(share_id)
+    if not share_authorized(share, request.cookies):
+        raise HTTPException(401, tr("Cần nhập mật khẩu của link"))
+    return await proxy_hls(path, request)
+
+
+@app.websocket("/api/share/{share_id}/ws")
+async def share_ws(ws: WebSocket, share_id: str, q: str = "sd"):
+    try:
+        share, cam = open_share(share_id)
+    except HTTPException:
+        await ws.close(code=4404)
+        return
+    src = f"{cam.id}_sub" if q == "sd" and cam.sub_url else cam.id
+    if not share_authorized(share, ws.cookies) or src not in ctx.go2rtc.streams:
+        await ws.close(code=4401)
+        return
+    await ws.accept()
+    viewers = ctx.share_viewers.setdefault(share.id, set())
+    viewers.add(ws)
+    try:
+        await proxy_live(ws, src, shares.seconds_left(share))  # tới hạn thì tự ngắt
+    finally:
+        viewers.discard(ws)
 
 
 app.include_router(api)

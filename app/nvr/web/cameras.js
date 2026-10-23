@@ -1,5 +1,5 @@
 // Trang quản lý camera: thêm/sửa/xoá, bật tắt ghi hình, kiểm tra kết nối.
-import { api, h, icon, iconButton, button, toast, modal, fmtDuration, STATE_LABEL } from './util.js';
+import { api, h, icon, iconButton, button, toast, modal, confirmBox, fmtDate, dayKey, fmtDuration, STATE_LABEL } from './util.js';
 import { store } from './store.js';
 import { t } from './i18n.js';
 
@@ -114,6 +114,7 @@ export function CamerasPage(main, params) {
           h('label.switch', card.toggle, h('span.slider'), h('span', t('Ghi hình'))),
           h('div.spacer'),
           iconButton('history', t('Xem lại'), { onclick: () => { location.hash = `#/playback?cam=${card.cam.id}`; } }),
+          iconButton('share', t('Chia sẻ'), { onclick: () => shareCamera(card.cam) }),
           iconButton('edit', t('Sửa'), { onclick: () => editCamera(card.cam) }),
           iconButton('trash', t('Xoá'), { class: 'danger', onclick: () => deleteCamera(card.cam) }))));
     loadThumb(card);
@@ -132,7 +133,8 @@ export function CamerasPage(main, params) {
       cam.sub_url ? t('Có luồng phụ') : t('Không có luồng phụ'),
       t('Âm thanh: {v}', { v: cam.audio ? t('có') : t('không') }),
       t('Mã: {id}', { id: cam.id }),
-    ].join(' · ');
+      cam.shares ? t('Đang chia sẻ: {n} link', { n: cam.shares }) : '',
+    ].filter(Boolean).join(' · ');
     if (!card.toggle.disabled) card.toggle.checked = cam.record;
   }
 
@@ -156,6 +158,101 @@ export function CamerasPage(main, params) {
     } catch (e) {
       toast(e.message, 'error');
     }
+  }
+
+  // Link xem trực tiếp một camera cho người không có tài khoản CamNAS: có thể đặt mật khẩu và ngày hết hạn
+  async function shareCamera(cam) {
+    let base = location.origin;
+    try {
+      base = (await api('/api/system')).settings.public_url || base;
+    } catch { /* dùng địa chỉ đang mở */ }
+    const local = /^https?:\/\/(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(base);
+    const list = h('div.share-list');
+    const label = h('input', { type: 'text', maxlength: 60, placeholder: t('Ví dụ: gửi cho bố mẹ') });
+    const until = h('input', { type: 'date', min: dayKey(new Date()), value: dayKey(new Date(Date.now() + 7 * 86400000)) });
+    const forever = h('input', { type: 'checkbox', onchange: () => { until.disabled = forever.checked; } });
+    const password = h('input', { type: 'text', autocomplete: 'off', spellcheck: false, placeholder: t('Để trống nếu không cần mật khẩu') });
+    const create = button(t('Tạo link'), 'plus', {
+      class: 'primary',
+      onclick: async () => {
+        create.disabled = true;
+        try {
+          const share = await api('/api/shares', {
+            method: 'POST',
+            body: { camera: cam.id, label: label.value, expires: forever.checked ? '' : until.value, password: password.value },
+          });
+          label.value = password.value = '';
+          await refresh();
+          copy(base + share.path, t('Đã tạo và sao chép link chia sẻ'));
+          store.refresh();
+        } catch (e) {
+          toast(e.message, 'error', 6000);
+        } finally {
+          create.disabled = false;
+        }
+      },
+    });
+
+    function untilText(s) {
+      if (s.expired) return t('Đã hết hạn');
+      if (!s.expires) return t('Không hết hạn');
+      const [y, m, d] = s.expires.split('-').map(Number);
+      return t('Đến hết ngày {date}', { date: fmtDate(new Date(y, m - 1, d).getTime() / 1000) });
+    }
+
+    async function copy(url, message = t('Đã sao chép link')) {
+      try {
+        await navigator.clipboard.writeText(url);
+        toast(message, 'ok');
+      } catch {
+        // trang mở bằng HTTP thường không được dùng clipboard: hiện link để chép tay
+        prompt(t('Sao chép link này:'), url);
+      }
+    }
+
+    function row(s) {
+      const url = base + s.path;
+      return h(`div.share-row${s.expired ? '.expired' : ''}`,
+        h('div.share-row-head',
+          h('strong', s.label || t('Không ghi chú')),
+          s.password ? h('span.share-lock', { title: t('Có mật khẩu') }, icon('lock', 14)) : '',
+          h('span.muted', untilText(s))),
+        h('div.share-row-link',
+          h('input.mono', { type: 'text', readOnly: true, value: url, onfocus: e => e.target.select() }),
+          iconButton('copy', t('Sao chép link'), { onclick: () => copy(url) }),
+          iconButton('trash', t('Thu hồi link'), {
+            class: 'danger',
+            onclick: async () => {
+              if (!await confirmBox(t('Thu hồi link này?'), t('Người đang xem qua link sẽ bị ngắt ngay và link không dùng được nữa.'), t('Thu hồi'), true)) return;
+              try {
+                await api(`/api/shares/${s.id}`, { method: 'DELETE' });
+                toast(t('Đã thu hồi link'), 'ok');
+                await refresh();
+                store.refresh();
+              } catch (e) {
+                toast(e.message, 'error');
+              }
+            },
+          })));
+    }
+
+    async function refresh() {
+      const mine = (await api('/api/shares')).filter(s => s.camera === cam.id);
+      list.replaceChildren(...(mine.length ? mine.map(row) : [h('p.muted', t('Chưa có link chia sẻ nào cho camera này.'))]));
+    }
+
+    modal(t('Chia sẻ camera "{name}"', { name: cam.name }), h('div.share-dialog',
+      h('p.muted', t('Người có link xem trực tiếp được camera này mà không cần tài khoản CamNAS, và không xem được gì khác. Có thể thu hồi link bất cứ lúc nào.')),
+      local ? h('p.warn', icon('alert', 16), ' ', t('Link đang dùng địa chỉ trong mạng nhà nên chỉ mở được khi ở nhà. Nhập địa chỉ HTTPS ở Cài đặt → Truy cập từ xa để link mở được từ bên ngoài.')) : '',
+      list,
+      h('h3', t('Tạo link mới')),
+      h('div.form',
+        h('label.field', h('span', t('Ghi chú (chỉ bạn thấy)')), label),
+        h('label.field', h('span', t('Hết hạn sau ngày')), until),
+        h('label.check', forever, h('span', t('Không hết hạn'))),
+        h('label.field', h('span', t('Mật khẩu (tuỳ chọn, ít nhất 4 ký tự)')), password),
+        create)), [{ label: t('Đóng'), value: null }]);
+    refresh().catch(e => toast(e.message, 'error'));
   }
 
   const unsub = store.subscribe(render);

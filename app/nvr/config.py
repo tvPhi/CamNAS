@@ -83,10 +83,21 @@ class Settings(BaseModel):
     update_prerelease: bool = False  # báo cả bản thử nghiệm (pre-release) khi kiểm tra cập nhật
 
 
+class Share(BaseModel):
+    """Link xem trực tiếp một camera mà không cần tài khoản CamNAS."""
+    id: str  # mã ngẫu nhiên trong link /s/<id>
+    camera: str
+    label: str = ""  # ghi chú cho chủ NAS, ví dụ chia sẻ cho ai
+    expires: str = ""  # hết hạn sau ngày này (YYYY-MM-DD, theo giờ NAS); trống = không hết hạn
+    password_hash: str = ""  # trống = không cần mật khẩu
+    created: float = 0
+
+
 class Config(BaseModel):
     cameras: list[Camera] = []
     settings: Settings = Settings()
     password_hash: str = ""
+    shares: list[Share] = []
 
 
 def slugify(name: str) -> str:

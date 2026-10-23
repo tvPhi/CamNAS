@@ -1,5 +1,5 @@
-import { api, h, icon, iconButton, toast, prefs } from './util.js';
-import { t, lang, setLang, LANGS } from './i18n.js';
+import { api, h, icon, iconButton, toast, prefs, logo, langSwitch } from './util.js';
+import { t, lang } from './i18n.js';
 import { store } from './store.js';
 import { LivePage } from './live.js';
 import { PlaybackPage } from './playback.js';
@@ -19,10 +19,6 @@ const root = document.getElementById('app');
 let current = null;
 let shell = null;
 let unsubStatus = null;
-
-function logo() {
-  return h('span.logo', { html: '<svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#2563eb"/><path d="M8 11.5A2.5 2.5 0 0 1 10.5 9h8A2.5 2.5 0 0 1 21 11.5v9a2.5 2.5 0 0 1-2.5 2.5h-8A2.5 2.5 0 0 1 8 20.5z" fill="#fff"/><path d="m21 14 4.2-2.6c.4-.25.8 0 .8.45v8.3c0 .45-.4.7-.8.45L21 18z" fill="#fff"/><circle cx="12.5" cy="13.5" r="1.7" fill="#ef4444"/></svg>' });
-}
 
 async function boot() {
   let me = {};
@@ -106,16 +102,6 @@ function updateStatus(cams) {
 }
 
 // Nút đổi ngôn ngữ VI / EN (đổi xong tải lại trang)
-function langSwitch() {
-  return h('div.lang-switch', { title: t('Ngôn ngữ') }, Object.keys(LANGS).map(code =>
-    h('button', {
-      type: 'button',
-      class: code === lang ? 'active' : '',
-      title: LANGS[code],
-      onclick: () => code !== lang && setLang(code),
-    }, code.toUpperCase())));
-}
-
 function parseHash() {
   const [path, query] = location.hash.replace(/^#\/?/, '').split('?');
   return { id: path || 'live', params: Object.fromEntries(new URLSearchParams(query || '')) };

@@ -1,7 +1,21 @@
 // Tiện ích dùng chung: gọi API, tạo DOM, icon, thông báo, hộp thoại, định dạng.
-import { t, lang } from './i18n.js';
+import { t, lang, setLang, LANGS } from './i18n.js';
 
 export class AuthError extends Error {}
+
+export function logo() {
+  return h('span.logo', { html: '<svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#2563eb"/><path d="M8 11.5A2.5 2.5 0 0 1 10.5 9h8A2.5 2.5 0 0 1 21 11.5v9a2.5 2.5 0 0 1-2.5 2.5h-8A2.5 2.5 0 0 1 8 20.5z" fill="#fff"/><path d="m21 14 4.2-2.6c.4-.25.8 0 .8.45v8.3c0 .45-.4.7-.8.45L21 18z" fill="#fff"/><circle cx="12.5" cy="13.5" r="1.7" fill="#ef4444"/></svg>' });
+}
+
+export function langSwitch() {
+  return h('div.lang-switch', { title: t('Ngôn ngữ') }, Object.keys(LANGS).map(code =>
+    h('button', {
+      type: 'button',
+      class: code === lang ? 'active' : '',
+      title: LANGS[code],
+      onclick: () => code !== lang && setLang(code),
+    }, code.toUpperCase())));
+}
 
 export async function api(path, { method = 'GET', body } = {}) {
   const res = await fetch(path, {
@@ -85,6 +99,8 @@ const ICONS = {
   calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
   folder: '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>',
   disk: '<path d="M22 12H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><path d="M6 16h.01M10 16h.01"/>',
+  share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/>',
+  copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   alert: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
   live: '<circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49M7.76 16.24a6 6 0 0 1 0-8.49M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/>',

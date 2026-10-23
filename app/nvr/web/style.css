@@ -109,6 +109,28 @@ input[type=text], input[type=password], input[type=number], input[type=date], se
 input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
 select { width: auto; padding-right: 28px; }
 
+/* ---------- hộp thoại chia sẻ camera ---------- */
+.share-dialog { display: flex; flex-direction: column; gap: 12px; min-width: min(520px, 100%); }
+.share-dialog p { margin: 0; }
+.share-dialog h3 { margin: 8px 0 0; font-size: 15px; }
+.share-list { display: flex; flex-direction: column; gap: 8px; }
+.share-row { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); display: flex; flex-direction: column; gap: 8px; }
+.share-row.expired { opacity: .6; }
+.share-row-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.share-row-head .muted { margin-left: auto; }
+.share-lock { display: inline-flex; color: var(--warn); }
+.share-row-link { display: flex; gap: 6px; align-items: center; }
+.share-row-link input { flex: 1; min-width: 0; font-size: 12px; }
+
+/* ---------- trang xem link chia sẻ ---------- */
+.share-page { display: flex; flex-direction: column; height: 100dvh; background: #000; }
+.share-top { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--border); }
+.share-title { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.share-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-title span { font-size: 12px; }
+.share-tile { flex: 1; }
+.share-tile .tile-actions { opacity: 1; }
+
 /* ---------- khung chính ---------- */
 .shell { display: flex; flex-direction: column; min-height: 100%; }
 .topbar {

@@ -23,7 +23,7 @@ def hash_password(password: str) -> str:
     return f"pbkdf2${salt.hex()}${dk.hex()}"
 
 
-def _verify_hash(password: str, stored: str) -> bool:
+def verify_password(password: str, stored: str) -> bool:
     try:
         _, salt, digest = stored.split("$")
     except ValueError:
@@ -51,7 +51,7 @@ class Auth:
     def check_password(self, password: str) -> bool:
         stored = self.store.config.password_hash
         if stored:
-            return _verify_hash(password, stored)
+            return verify_password(password, stored)
         return hmac.compare_digest(password.encode(), self._env_password().encode())
 
     def set_password(self, password: str) -> None:
@@ -81,6 +81,23 @@ class Auth:
         return payload + "." + base64.urlsafe_b64encode(sig).decode().rstrip("=")
 
     def valid_token(self, token: str | None) -> bool:
+        return self._valid(self._signing_key(), token)
+
+    # Phiên của người xem link chia sẻ: khoá ký gắn với link và mật khẩu của link, nên xoá link hay
+    # đổi mật khẩu là phiên cũ hết hiệu lực, và không bao giờ dùng được cho trang quản trị.
+    def _share_key(self, share_id: str, password_hash: str) -> bytes:
+        return hmac.new(self._secret, f"share:{share_id}:{password_hash}".encode(), hashlib.sha256).digest()
+
+    def make_share_token(self, share_id: str, password_hash: str, seconds: int) -> str:
+        payload = f"{int(time.time()) + seconds}.{secrets.token_hex(8)}"
+        sig = hmac.new(self._share_key(share_id, password_hash), payload.encode(), hashlib.sha256).digest()
+        return payload + "." + base64.urlsafe_b64encode(sig).decode().rstrip("=")
+
+    def valid_share_token(self, share_id: str, password_hash: str, token: str | None) -> bool:
+        return self._valid(self._share_key(share_id, password_hash), token)
+
+    @staticmethod
+    def _valid(key: bytes, token: str | None) -> bool:
         if not token:
             return False
         try:
@@ -89,5 +106,5 @@ class Auth:
                 return False
         except ValueError:
             return False
-        expected = hmac.new(self._signing_key(), f"{expires}.{nonce}".encode(), hashlib.sha256).digest()
+        expected = hmac.new(key, f"{expires}.{nonce}".encode(), hashlib.sha256).digest()
         return hmac.compare_digest(base64.urlsafe_b64encode(expected).decode().rstrip("="), sig)

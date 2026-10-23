@@ -105,6 +105,26 @@ EN: dict[str, str] = {
     # cập nhật
     "Không kiểm tra được phiên bản mới: {error}": "Could not check for updates: {error}",
     "Đã có phiên bản mới {version}": "Version {version} is available",
+    "Cần nhập mật khẩu của link":
+        "The link password is required",
+    "Link chia sẻ không tồn tại hoặc đã bị thu hồi":
+        "This share link does not exist or has been revoked",
+    "Link chia sẻ đã hết hạn":
+        "This share link has expired",
+    "Mật khẩu của link cần ít nhất 4 ký tự":
+        "The link password needs at least 4 characters",
+    "Ngày hết hạn không hợp lệ":
+        "Invalid expiry date",
+    "Ngày hết hạn đã qua":
+        "The expiry date is in the past",
+    "Nhập sai mật khẩu link chia sẻ camera \"{name}\" từ {ip}":
+        "Wrong share link password for camera \"{name}\" from {ip}",
+    "Thu hồi link chia sẻ camera \"{name}\"":
+        "Revoked a share link for camera \"{name}\"",
+    "Tạo link chia sẻ camera \"{name}\", hết hạn sau ngày {date}":
+        "Created a share link for camera \"{name}\", expires after {date}",
+    "Tạo link chia sẻ camera \"{name}\", không hết hạn":
+        "Created a share link for camera \"{name}\", never expires",
     "Package Center đã đọc nguồn gói CamNAS (DSM build {build}, {arch})":
         "Package Center read the CamNAS package source (DSM build {build}, {arch})",
     "Không đọc được {image}. Package này trên GitHub cần để Public.":

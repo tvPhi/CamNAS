@@ -16,6 +16,7 @@ CamNAS là phần mềm ghi hình (NVR) miễn phí, chạy trong Docker trên N
 
 - **Trực tiếp**: xem nhiều camera dạng lưới (1, 1 lớn + 2 nhỏ, 2×2, 3×3), độ trễ khoảng 1 giây. Chọn chất lượng **Tự động / HD / SD**. Bấm đúp vào một camera để phóng to. Có chụp ảnh, toàn màn hình, bật/tắt tiếng.
 - **Xem lại**: dòng thời gian 24 giờ, mỗi camera một hàng. Có thể kéo, cuộn chuột để phóng to, bấm vào một thời điểm để phát. Các đoạn tự phát nối tiếp nhau. Tua 0.5× đến 16×. Đánh dấu đầu/cuối để **xuất clip mp4**.
+- **Chia sẻ một camera bằng link**: ai có link đều xem trực tiếp được camera đó mà không cần tài khoản CamNAS. Có thể đặt mật khẩu và ngày hết hạn, thu hồi link bất cứ lúc nào.
 - **Camera**: thêm, sửa, xoá, bật/tắt ghi hình, kiểm tra kết nối. Có mẫu sẵn cho EZVIZ/Hikvision, Imou/Dahua, TP-Link Tapo, hoặc nhập địa chỉ RTSP bất kỳ.
 - **Tự dọn ổ cứng**: xoá bản ghi quá hạn N ngày, hoặc xoá bản ghi cũ nhất khi ổ sắp đầy.
 - **Chọn thư mục lưu** ngay trên giao diện, có ô duyệt thư mục trên NAS.
@@ -146,6 +147,16 @@ Trang Cài đặt cũng hiển thị dung lượng trung bình mỗi ngày và s
   - Không dùng Web Station: *Control Panel → Login Portal → Advanced → Reverse Proxy → Create*, nguồn **HTTPS** cổng **8443**, đích **HTTP** `localhost` cổng **8090**, và thêm *Custom Header → Create → WebSocket*.
 - **Cài bằng docker-compose: HTTPS có sẵn trong CamNAS.** Container chạy bằng root nên CamNAS mở thêm cổng **8443** dùng chính chứng chỉ của NAS (ví dụ Let's Encrypt trong *Control Panel → Security → Certificate*). Mở cổng TCP **8443** trỏ về NAS rồi vào `https://tên-miền-của-bạn:8443`. Muốn dùng chứng chỉ khác thì chọn trong *Cài đặt → Truy cập HTTPS*. Khi DSM gia hạn chứng chỉ, CamNAS tự nạp chứng chỉ mới.
 - **Tailscale** (có trong Package Center): cài trên NAS và điện thoại, rồi mở `http://<IP-Tailscale-của-NAS>:8090`. Không cần mở cổng nào.
+
+## Chia sẻ camera
+
+*Camera* → biểu tượng chia sẻ trên một camera → *Tạo link*. Mỗi link chỉ mở được phần xem trực tiếp của đúng camera đó (không xem lại, không thấy camera khác hay cài đặt), có nút đổi HD/SD.
+
+- **Hết hạn sau ngày**: hết ngày đó (theo giờ NAS) thì link không dùng được nữa; tick *Không hết hạn* nếu muốn giữ mãi.
+- **Mật khẩu** (tuỳ chọn, từ 4 ký tự): người xem chỉ cần nhập một lần trên mỗi trình duyệt, dùng được tối đa 30 ngày hoặc tới khi link hết hạn.
+- **Thu hồi**: bấm biểu tượng thùng rác là người đang xem bị ngắt ngay. Xoá camera thì các link của camera đó cũng bị xoá.
+- Link dùng địa chỉ HTTPS ở *Cài đặt → Truy cập từ xa (HTTPS)* nếu đã nhập, để mở được từ ngoài mạng nhà; nếu chưa thì dùng địa chỉ bạn đang mở CamNAS.
+- Nhập sai mật khẩu link được ghi vào Nhật ký, sai 5 lần thì địa chỉ đó bị khoá 1 phút.
 
 ## Phím tắt
 
